@@ -1,0 +1,3 @@
+*.ipynb
+train_dnn.py
+*.pyc
