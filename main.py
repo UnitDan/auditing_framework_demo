@@ -179,11 +179,11 @@ class AuditingFramework:
     def get_default_eps(self):
         return 1e8
 
-    def get_samples_to_estimate_eps(self):
-        pass
+    # def get_samples_to_estimate_eps(self):
+    #     pass
 
-    def estimate_eps(self, similar_pairs):
-        pass
+    # def estimate_eps(self, similar_pairs):
+    #     pass
 
     # ----------------------------- 模型交互 -----------------------------------
         

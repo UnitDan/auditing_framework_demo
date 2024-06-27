@@ -9,6 +9,8 @@
 3. 指标：包括准确性、个体/群体公平性指标，以及判断是否一对样本是公平的。
 4. 参数设定：设置审计流程中的一些参数。
 
+接口的使用方法可以参考`test_framework.ipynb`。
+
 ## 基本信息
 ### 获取模型：`get_model()`
 
@@ -35,6 +37,35 @@ dict。
 
 **Returns:**\
 `range_dict`(dict) - 每个特征的数据范围。数值类型的特征范围为`[lower_bound, upper_bound]`闭区间，其中`lower_bound`和`upper_bound`均为float类型。类别类型的特征范围为`[value1, value2, ...]`等构成的。
+
+## 参数设定
+
+### 指定敏感属性： `set_sensitive_attr(sensitive_attr)`
+
+指定敏感属性为性别或种族。
+
+**Parameters:**\
+`sensitive_attr`(str) - 敏感属性的名称（`'sex'`或`'race'`）。
+
+### 设定数据范围：`set_data_range(range_dict)`
+
+设定搜索不公平样本的数据范围。
+
+**Parameters:**\
+`range_dict`(dict) - 每个特征的数据范围。数值类型的特征范围为`[lower_bound, upper_bound]`闭区间，其中`lower_bound`和`upper_bound`均为float类型。类别类型的特征范围为`[value1, value2, ...]`等构成的。
+
+### 指定个体公平指标：`set_individual_fairness_metric(dx, eps)`
+
+设定个体公平性指标的输入空间相似度度量dx和epsilon值。
+
+**Parameters:**\
+`dx`(str) -  若为`'LR'`则指定dx为LR距离度量，若为`'Eu'`则指定dx为欧式距离度量。
+`eps`(float) - 指定epsilon的值。
+
+### 获得默认的epsilon值：`get_default_eps()`
+
+**Returns：**\
+`eps`(float) - 默认的epsilon取值。
 
 ## 模型交互
 ### 访问模型：`query_model(data_samlpe)`
@@ -125,49 +156,3 @@ float。
 `whether_fair`(bool): 是否公平。\
 `dx`：样本在输入空间中的相似性度量。\
 `dy`：样本在输出空间中的相似性度量。
-
-## 参数设定
-
-### 指定敏感属性： `set_sensitive_attr(sensitive_attr)`
-
-指定敏感属性为性别或种族。
-
-**Parameters:**\
-`sensitive_attr`(str) - 敏感属性的名称（`'sex'`或`'race'`）。
-
-### 设定数据范围：`set_data_range(range_dict)`
-
-设定搜索不公平样本的数据范围。
-
-**Parameters:**\
-`range_dict`(dict) - 每个特征的数据范围。数值类型的特征范围为`[lower_bound, upper_bound]`闭区间，其中`lower_bound`和`upper_bound`均为float类型。类别类型的特征范围为`[value1, value2, ...]`等构成的。
-
-### 指定个体公平指标：`set_individual_fairness_metric(dx, eps)`
-
-设定个体公平性指标的输入空间相似度度量dx和epsilon值。
-
-**Parameters:**\
-`dx`(str) -  若为`'LR'`则指定dx为LR距离度量，若为`'Eu'`则指定dx为欧式距离度量。
-`eps`(float) - 指定epsilon的值。
-
-### 获得默认的epsilon值：`get_default_eps()`
-
-**Returns：**\
-`eps`(float) - 默认的epsilon取值。
-
-### 获得用于估计epsilon的样本对：`get_samples_to_estimate_eps()`
-
-得到一系列成对样本，用户可以选择其中一些认为应当获得相同分类结果的样本对（至少要选择一对）。以此来估计epsilon的值。
-
-**Returns:**\
-`pairs`(list[list[dict]]) - 若干的成对样本。
-
-### 估计epsilon：`estimate_eps(similar_pairs)`
-
-根据用户选择的认为应当得到相同分类结果的样本对，估计合适的epsilon取值。
-
-**Parameters:**\
-`similar_pairs`(list[list[dict]]) - 用户选择的应当获得相同分类结果的成对样本。
-
-**Returns：**\
-`eps`(float) - 估计的epsilon取值。
