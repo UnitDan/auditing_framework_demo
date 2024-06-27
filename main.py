@@ -83,7 +83,9 @@ class AuditingFramework:
             'State-gov': 5,
             'Without-pay': 6
         })
+        # print(data_df)
         data_feature = torch.Tensor(data_df.values)
+        # print(data_feature)
         return self.data_gen._feature2data(data_feature)
 
     def _dataloader2s(self, dataloader):
@@ -143,8 +145,20 @@ class AuditingFramework:
         self.dataset.use_sensitive_attr = True
         self.data_gen = self.data.Generator(include_sensitive_feature=True, sensitive_vars=self.sensitive_attr, device='cpu')
 
-    def set_data_range(self):
-        pass
+    def set_data_range(self, range_dict):
+        if len(range_dict['sex_Male']) == 1:
+            range_dict['sex_Male'].append(range_dict['sex_Male'][0])
+        if len(range_dict['race_White']) == 1:
+            range_dict['race_White'].append(range_dict['race_White'][0])
+
+        continuous_columns = ['age', 'capital-gain', 'capital-loss', 'education-num',
+                              'hours-per-week', 'race_White', 'sex_Male']
+        onehot_columns = ['marital-status', 'workclass']
+        continuous_range = {key: range_dict[key] for key in continuous_columns}
+        onehot_value_dict = {key: range_dict[key] for key in onehot_columns}
+        lower, upper, mask = self.data_gen.gen_range(continuous_range, onehot_value_dict)
+        # print(upper, '\n', lower, '\n', mask)
+        self.seeker.set_data_range(lower, upper, mask)
 
     def set_individual_fairness_metric(self, dx, eps):
         assert dx in ['LR', 'Eu']
@@ -181,7 +195,8 @@ class AuditingFramework:
 
     def seek_unfair_pair(self, init_sample):
         init_sample = self._dict2tensor(init_sample)
-        pair, _  = self.seeker.seek(lamb=1, origin_lr=0.1, max_query=5e3, init_sample=init_sample)
+        pair, n_query  = self.seeker.seek(lamb=1, origin_lr=0.1, max_query=5e4, init_sample=init_sample)
+        # print(n_query)
         return self._tensor2dict(pair)
 
     def optimize(self, model, unfair_pair):

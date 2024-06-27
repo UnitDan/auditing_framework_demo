@@ -100,6 +100,21 @@ class DataGenerator():
 
         return data
     
+    def gen_by_data_range(self, n=1, data_range=None):
+        if data_range == None:
+            r = self.get_range('feature')
+        else:
+            r = data_range
+        l, u = r[0], r[1]
+        datas = torch.rand((n, self.X.shape[1])).to(self.device)
+        datas = torch.floor(l + datas*(u - l + 1))
+        # features = torch.floor(l + features*(u - l))
+
+        if not self.include_sensitive_feature:
+            datas = datas[:, self.columns_to_keep]
+
+        return datas
+    
     def gen_by_distribution(self, n=1):
         idxs = torch.randint(self.all_features.shape[0], (n, self.all_features.shape[1]))
         data = []
@@ -114,7 +129,7 @@ class DataGenerator():
 
         return data
 
-    def clip(self, data, with_sensitive_feature=None):
+    def clip(self, data, with_sensitive_feature=None, data_range=None):
         if with_sensitive_feature is None:
             with_sensitive_feature = self.include_sensitive_feature
         def _onehot(data):
@@ -132,7 +147,8 @@ class DataGenerator():
         
         for r in self.onehot_ranges:
             data[:, r[0]: r[1]] = _onehot(data[:, r[0]: r[1]])
-        data_range = self.get_range('data', include_sensitive_feature=True)
+        if data_range == None:
+            data_range = self.get_range('data', include_sensitive_feature=True)
         continuous_low, continuous_high = data_range[0][self.continuous_columns], data_range[1][self.continuous_columns]
         data[:, self.continuous_columns] = data[:, self.continuous_columns].clip(continuous_low, continuous_high)
 

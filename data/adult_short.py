@@ -123,9 +123,48 @@ class Generator(DataGenerator):
         ]
         self.feature_name = ['age', 'capital-gain', 'capital-loss', 'education-num',
        'hours-per-week', 'race_White', 'sex_Male', 'marital-status', 'workclass']
+        
+        self.value_index_map = {
+            'marital-status': {
+                'Divorced': 5,
+                'Married-AF-spouse': 6,
+                'Married-civ-spouse': 7,
+                'Married-spouse-absent': 8,
+                'Never-married': 9,
+                'Separated': 10,
+                'Widowed':11
+            },
+            'workclass': {
+                'Federal-gov': 14,
+                'Local-gov': 15,
+                'Private': 16,
+                'Self-emp-inc': 17,
+                'Self-emp-not-inc': 18,
+                'State-gov': 19,
+                'Without-pay': 20
+            }
+        }
 
         super().__init__(include_sensitive_feature, device)
 
+    def gen_range(self, continuous_range, onehot_value_dict):
+        # continuous range里包含sex和race的范围
+        lower, upper = torch.zeros(self.X.shape[1]), torch.ones(self.X.shape[1])
+        for i in range(len(self.continuous_columns)):
+            key = self.feature_name[i]
+            idx = self.continuous_columns[i]
+            lower[idx] = continuous_range[key][0]
+            upper[idx] = continuous_range[key][1]
+        mask = torch.zeros_like(upper)
+        mask[self.continuous_columns] = 1
+        for key in self.value_index_map:
+            for value in self.value_index_map[key]:
+                if value in onehot_value_dict[key]:
+                    mask[self.value_index_map[key][value]] = 1
+                else:
+                    mask[self.value_index_map[key][value]] = 0
+        return lower, upper, mask
+                
     def data_format(self, data):
         df = self.feature_dataframe(data=data, dtype='float32')
         df['marital-status'] = df['marital-status'].replace({

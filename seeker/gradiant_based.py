@@ -14,12 +14,12 @@ class GradiantBasedSeeker(Seeker, metaclass=ABCMeta):
         self.origin_label, self.mis_label = None, None
         self.sensitiveness = unfair_metric.dx.sensitiveness()
 
-        data_range = self.data_gen.get_range('data')
-        self.scale = data_range[1] - data_range[0]
-
         self.cur_delta = torch.Tensor()
         self.cur_x = torch.Tensor()
         self.cur_g = None
+
+        self.data_range = self.data_gen.get_range('data')
+        self.range_mask = torch.ones(self.data_gen.X.shape[1])
 
     def _norm(self, x):
         return self.data_gen.norm(x)
@@ -53,6 +53,15 @@ class GradiantBasedSeeker(Seeker, metaclass=ABCMeta):
         self.n_query += additional_query
         return self.unfair_metric.is_unfair(x1, x2, y1, y2)
 
+    def set_data_range(self, lower, upper, mask):
+        self.data_range = torch.stack([lower, upper])
+        self.range_mask = mask
+
+    def check_range(self, data):
+        cata_check = torch.sum((1 - self.range_mask)*data) == 0
+        range_check = torch.all(data >= self.data_range[0]).item() and torch.all(data <= self.data_range[1]).item()
+        return cata_check and range_check
+
     def loss(self, x):
         if len(x.shape) == 1:
             x = x.unsqueeze(0)
@@ -73,8 +82,14 @@ class GradiantBasedSeeker(Seeker, metaclass=ABCMeta):
         # print(g)
         # print('-----------------------------')
         g = g / torch.norm(g)
+        # g = g / torch.norm(g)
+        # print('gg:\n', g)
         new_delta = delta - lr*g
-        new_x = self._norm(self.data_gen.clip(self._recover(x + new_delta)))
+        # print('new_delta\n', new_delta)
+        # print(self._recover(x))
+        # print(self._recover(x + new_delta))
+        # print(self.data_gen.clip(self._recover(x + new_delta), data_range=self.data_range))
+        new_x = self._norm(self.data_gen.clip(self._recover(x + new_delta), data_range=self.data_range))
         return new_x - x
 
     @abstractmethod
@@ -85,7 +100,7 @@ class GradiantBasedSeeker(Seeker, metaclass=ABCMeta):
         x = x.squeeze()
         pert = torch.eye(x.shape[0])
         pert = torch.concat([pert, -pert])
-        x1_candidate = torch.round(self.data_gen.clip(x + pert))
+        x1_candidate = torch.round(self.data_gen.clip(x + pert, data_range=self.data_range))
         diff = torch.any(x1_candidate.int() != x.int(), dim=1)
         x1_candidate = x1_candidate[diff]
         return x1_candidate
@@ -128,7 +143,7 @@ class GradiantBasedSeeker(Seeker, metaclass=ABCMeta):
             if torch.all(g_direction == 0):
                 # print('g == 0')
                 return None
-            x1_candidate = torch.round(self.data_gen.clip(x_recover - torch.diag(g_direction)))
+            x1_candidate = torch.round(self.data_gen.clip(x_recover - torch.diag(g_direction), data_range=self.data_range))
             diff = torch.any(x1_candidate.int() != x_recover0.int(), dim=1)
             x1_candidate = x1_candidate[diff]
             # print(diff)
@@ -139,6 +154,9 @@ class GradiantBasedSeeker(Seeker, metaclass=ABCMeta):
             if d_min < 1/self.unfair_metric.epsilon:
                 x_step = x1_candidate[idx].unsqueeze(0)
                 # print('x_step after converge\n', x_step)
+
+                # print(x_step.detach() - x_recover0)
+                # print('diff converge', (x_step.detach() - x_recover0) * (1-self.range_mask))
                 if self._check(x_recover0, x_step, 1):
                     pair = torch.concat([x_recover0, x_step], dim=0)
                     return pair
@@ -153,11 +171,14 @@ class GradiantBasedSeeker(Seeker, metaclass=ABCMeta):
 
         def init(init_sample=None):
             if init_sample == None:
-                x0 = self._norm(self.data_gen.gen_by_range(1))
+                x0 = self._norm(self.data_gen.gen_by_data_range(1, data_range=self.data_range))
             else:
+                if not self.check_range(init_sample):
+                    raise Exception('The init sample is out of the specified range of data.')
                 x0 = init_sample
             delta_t = torch.zeros_like(x0)
-            x_t = self._recover(x0)
+            x_t = x0
+            # x_t = self._recover(x0)
             pred_t = self._query_label(x0)
 
             self.origin_label = pred_t.item()
@@ -179,27 +200,39 @@ class GradiantBasedSeeker(Seeker, metaclass=ABCMeta):
                 return None, self.n_query
             
             # stage 1: fine a x0, which is most likely to have a adversarial
+            # print('delta_t\n', delta_t)
             delta_next = self.step1(x=x0, delta=delta_t, lr=lr, lamb=lamb)
             # print('length of the perturbation of delta:', torch.norm(delta_next - delta_t, p=2), sep='\n')
             x_next = self._norm(torch.round(self._recover(x0+delta_next)))
             pred_next = self._query_logits(x_next)[0]
-            # print(pred_next)
+            # print('x0\n', x0)
+            # print('delta_next\n', delta_next)
+            # print(delta_next*(1-self.range_mask))
+            # print('x_next\n', x_next)
+            # print('x_t\n', x_t)
 
             # converage, then stage 2: find an adversarial of x1=(x+delta_t)
             if torch.all(x_next == x_t):
+                # print(self._recover(x0))
+                # print(self._recover(x_t))
+                # print('diff', (self._recover(x0) - self._recover(x_t))*(1-self.range_mask))
                 # print('converge', 'n_query:', self.n_query, 'n_iters', self.n_iters)
                 # print(self._recover(x0)[0].int())
                 # print(self.model(self._recover(x0)))
                 # print(self._recover(x_t)[0].int(), self.n_query)
                 # print(self.model(self._recover(x_t)))
+
                 # exit()
                 x1 = x_t.detach()
                 result = self.after_converge(x1)
+
                 if result == None:
                     # print('restart', self.n_query)
                     x0, delta_t, x_t, pred_t, lr = init()
                     continue
                     # return None, self.n_query, self.n_iters
+                final_result = result[1]
+                # print('final diff', (self._recover(x0) - final_result)*(1-self.range_mask))
                 return result, self.n_query
             
             if pred_next[self.origin_label] - pred_next[self.mis_label] <= 1e-4:
@@ -219,12 +252,13 @@ class BlackboxSeeker(GradiantBasedSeeker):
     def _gradient1(self, x, delta, lamb):
         loss = lambda x, delta, lamb: self.loss(x+delta) + lamb * self.reg(delta)
 
+        # print('x:\n', self._recover(x))
+        # print()
         delta.requires_grad=True
         if self.cur_delta.shape[0] != 0:
             # print('old g')
             g = self.cur_g
         else:
-            # print(self._recover(x))
             # print('new g')
             g = torch.zeros_like(x).squeeze()
             for i in range(g.shape[0]):
@@ -232,18 +266,18 @@ class BlackboxSeeker(GradiantBasedSeeker):
                 pert[i] = self.g_range
                 pert_delta = [delta + pert, delta - pert]
                 # print()
-                # print(self._recover(x + pert_delta[0]))
-                # print(self._recover(x + pert_delta[1]))
+                # print('pert\n', self._recover(x + pert_delta[0]))
+                # print('pert\n', self._recover(x + pert_delta[1]))
                 # print()
                 g[i] = (loss(x, pert_delta[0], lamb) \
                       - loss(x, pert_delta[1], lamb))/2
-                # print(loss(x, pert_delta[0], lamb))
-                # print(loss(x, pert_delta[1], lamb))
+                # print('loss\n', loss(x, pert_delta[0], lamb))
+                # print('loss\n', loss(x, pert_delta[1], lamb))
                 # input()
+            g = self.range_mask*g
             self.cur_delta = delta.clone()
             self.cur_g = g
-            # print(g)
-            # exit()
+        # print('gradient\n', g)
         return g
     
     def _gradient2(self, x):
@@ -257,6 +291,7 @@ class BlackboxSeeker(GradiantBasedSeeker):
                 pert = torch.zeros_like(x).squeeze()
                 pert[i] = 1
                 g[i] = (self.loss(self._norm(x + pert)) - self.loss(self._norm(x - pert)))/2
+            g = self.range_mask * g
             self.cur_x = x.clone()
             self.cur_g = g
         return g
