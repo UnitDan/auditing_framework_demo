@@ -26,6 +26,9 @@ class AuditingFramework:
         checkpoint = 'trained_models/MLP_all-features_0.pth'
         self.model.load(checkpoint)
 
+        # data range
+        self.range_dict = None
+
         # fairness metric
         # initialize by calling set_individual_fairness_metric
         self.unfair_metric = None
@@ -83,9 +86,9 @@ class AuditingFramework:
             'State-gov': 5,
             'Without-pay': 6
         })
-        print(data_df)
+        # print(data_df)
         data_feature = torch.Tensor(data_df.values)
-        print(data_feature)
+        # print(data_feature)
         return self.data_gen._feature2data(data_feature)
 
     def _dataloader2s(self, dataloader):
@@ -93,6 +96,23 @@ class AuditingFramework:
         for x, y in dataloader:
             g = x[:, s_id]
             yield x, y, g
+
+    def _set_seeker_data_range(self):
+        assert self.seeker != None
+
+        if len(self.range_dict['sex_Male']) == 1:
+            self.range_dict['sex_Male'].append(self.range_dict['sex_Male'][0])
+        if len(self.range_dict['race_White']) == 1:
+            self.range_dict['race_White'].append(self.range_dict['race_White'][0])
+
+        continuous_columns = ['age', 'capital-gain', 'capital-loss', 'education-num',
+                              'hours-per-week', 'race_White', 'sex_Male']
+        onehot_columns = ['marital-status', 'workclass']
+        continuous_range = {key: self.range_dict[key] for key in continuous_columns}
+        onehot_value_dict = {key: self.range_dict[key] for key in onehot_columns}
+        lower, upper, mask = self.data_gen.gen_range(continuous_range, onehot_value_dict)
+        # print(upper, '\n', lower, '\n', mask)
+        self.seeker.set_data_range(lower, upper, mask)
 
     # ----------------------------- 基本信息 -----------------------------------
 
@@ -146,23 +166,12 @@ class AuditingFramework:
         self.data_gen = self.data.Generator(include_sensitive_feature=True, sensitive_vars=self.sensitive_attr, device='cpu')
 
     def set_data_range(self, range_dict):
-        if len(range_dict['sex_Male']) == 1:
-            range_dict['sex_Male'].append(range_dict['sex_Male'][0])
-        if len(range_dict['race_White']) == 1:
-            range_dict['race_White'].append(range_dict['race_White'][0])
-
-        continuous_columns = ['age', 'capital-gain', 'capital-loss', 'education-num',
-                              'hours-per-week', 'race_White', 'sex_Male']
-        onehot_columns = ['marital-status', 'workclass']
-        continuous_range = {key: range_dict[key] for key in continuous_columns}
-        onehot_value_dict = {key: range_dict[key] for key in onehot_columns}
-        lower, upper, mask = self.data_gen.gen_range(continuous_range, onehot_value_dict)
-        # print(upper, '\n', lower, '\n', mask)
-        self.seeker.set_data_range(lower, upper, mask)
+        self.range_dict = range_dict
 
     def set_individual_fairness_metric(self, dx, eps):
         assert dx in ['LR', 'Eu']
         assert self.dataset != None
+        assert self.range_dict != None
 
         if dx == 'LR':
             distance_x = LogisticRegSensitiveSubspace()
@@ -175,6 +184,7 @@ class AuditingFramework:
         self.unfair_metric = UnfairMetric(dx=distance_x, dy=distance_y, epsilon=eps)
 
         self.seeker = BlackboxSeeker(model=self.model, unfair_metric=self.unfair_metric, data_gen=self.data_gen)
+        self._set_seeker_data_range()
 
     def get_default_eps(self):
         return 1e8
@@ -241,7 +251,7 @@ class AuditingFramework:
         for i in range(n):
             datapoint = data_generated[i]
             data_around = self.data_gen.generate_around_datapoint(datapoint, n=1000)
-            mean_L = individual_unfairness(model, data_around, self.unfair_metric, return_str=False)
+            mean_L = individual_unfairness(model, self.unfair_metric, data_around)
             mean_L_list.append(mean_L)
         return sum(mean_L_list)/len(mean_L_list)
 
