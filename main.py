@@ -45,8 +45,8 @@ class AuditingFramework:
             5: 'Separated',
             6: 'Widowed'
         })
-        data_df['race'] = data_df['race_White'].apply(lambda x: 'Others' if x < 0.5 else 'White')
-        data_df['sex'] = data_df['sex_Male'].apply(lambda x: 'Female' if x < 0.5 else 'Male')
+        data_df['race_White'] = data_df['race_White'].apply(lambda x: 'Others' if x < 0.5 else 'White')
+        data_df['sex_Male'] = data_df['sex_Male'].apply(lambda x: 'Female' if x < 0.5 else 'Male')
         data_df['workclass'] = data_df['workclass'].replace({
             0: 'Federal-gov',
             1: 'Local-gov',
@@ -72,8 +72,8 @@ class AuditingFramework:
             'Separated': 5,
             'Widowed': 6
         })
-        data_df['race'] = data_df['race_White'].replace({'Others': 0, 'White': 1})
-        data_df['sex'] = data_df['sex_Male'].replace({'Female': 0, 'Male': 1})
+        data_df['race_White'] = data_df['race_White'].replace({'Others': 0, 'White': 1})
+        data_df['sex_Male'] = data_df['sex_Male'].replace({'Female': 0, 'Male': 1})
         data_df['workclass'] = data_df['workclass'].replace({
             'Federal-gov': 0,
             'Local-gov': 1,
@@ -83,9 +83,9 @@ class AuditingFramework:
             'State-gov': 5,
             'Without-pay': 6
         })
-        # print(data_df)
+        print(data_df)
         data_feature = torch.Tensor(data_df.values)
-        # print(data_feature)
+        print(data_feature)
         return self.data_gen._feature2data(data_feature)
 
     def _dataloader2s(self, dataloader):
