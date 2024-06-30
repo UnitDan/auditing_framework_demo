@@ -259,4 +259,7 @@ class AuditingFramework:
         pair_tensor = self._dict2tensor(sample_pair)
         y1 = model.get_prediction(pair_tensor[0])
         y2 = model.get_prediction(pair_tensor[1])
-        return not self.unfair_metric.is_unfair(pair_tensor[0], pair_tensor[1], y1, y2)
+        fair_or_not = not self.unfair_metric.is_unfair(pair_tensor[0], pair_tensor[1], y1, y2)
+        dx = self.unfair_metric.dx(pair_tensor[0], pair_tensor[1]).item()
+        dy = self.unfair_metric.dy(y1, y2).item()
+        return fair_or_not, dx, dy
