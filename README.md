@@ -54,6 +54,13 @@ dict。
 **Parameters:**\
 `range_dict`(dict) - 每个特征的数据范围。数值类型的特征范围为`[lower_bound, upper_bound]`闭区间，其中`lower_bound`和`upper_bound`均为float类型。类别类型的特征范围为`[value1, value2, ...]`等构成的。
 
+### 获取用户设定的数据范围：`get_data_range()`
+
+获取用户设置的搜索不公平样本的数据范围。
+
+**Returns:**\
+`range_dict`(dict) - 每个特征的数据范围。数值类型的特征范围为`[lower_bound, upper_bound]`闭区间，其中`lower_bound`和`upper_bound`均为float类型。类别类型的特征范围为`[value1, value2, ...]`等构成的。
+
 ### 指定个体公平指标：`set_individual_fairness_metric(dx, eps)`
 
 设定个体公平性指标的输入空间相似度度量dx和epsilon值。
@@ -84,6 +91,13 @@ dict。
 
 **Parameters:**\
 `init_sample`(*dict*) - 搜索不公平样本时的起始样本。
+
+**Returns:**\
+`unfair_pair`(list[dict]) - 成对的不公平样本。列表包含两个样本，每个样本都是字典形式。
+
+### 获取搜索到的不公平样本：`get_unfair_pair()`
+
+获取搜索到的不公平样本。
 
 **Returns:**\
 `unfair_pair`(list[dict]) - 成对的不公平样本。列表包含两个样本，每个样本都是字典形式。

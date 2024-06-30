@@ -37,6 +37,9 @@ class AuditingFramework:
         # initialize by calling set_individual_fairness_metric
         self.seeker = None
 
+        # unfair pair
+        self.unfair_pair = None
+
     def _tensor2dict(self, data_tensor):
         data_df = self.data_gen.feature_dataframe(data=data_tensor)
         data_df['marital-status'] = data_df['marital-status'].replace({
@@ -168,6 +171,10 @@ class AuditingFramework:
     def set_data_range(self, range_dict):
         self.range_dict = range_dict
 
+    def get_data_range(self):
+        assert self.range_dict != None
+        return self.range_dict
+
     def set_individual_fairness_metric(self, dx, eps):
         assert dx in ['LR', 'Eu']
         assert self.dataset != None
@@ -207,7 +214,13 @@ class AuditingFramework:
         init_sample = self._dict2tensor(init_sample)
         pair, n_query  = self.seeker.seek(lamb=1, origin_lr=0.1, max_query=5e4, init_sample=init_sample)
         # print(n_query)
-        return self._tensor2dict(pair)
+        unfair_pair = self._tensor2dict(pair)
+        self.unfair_pair = unfair_pair
+        return unfair_pair
+
+    def get_unfair_pair(self):
+        assert self.unfair_pair != None
+        return self.unfair_pair
 
     def optimize(self, model, unfair_pair):
         unfair_pair = self._dict2tensor(unfair_pair)
